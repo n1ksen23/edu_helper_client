@@ -13,6 +13,7 @@ import 'repeat.dart';
 import 'editors.dart';
 import 'design.dart';
 import 'pages.dart';
+import 'updates.dart';
 
 final appProvider = Provider<AppState>((ref) => throw UnimplementedError());
 Future<void> main() async {
@@ -26,6 +27,7 @@ Future<void> main() async {
     ),
   );
   unawaited(api.restore().then((_) => state.changed()));
+  unawaited(appUpdater.check());
 }
 
 class EduApp extends ConsumerStatefulWidget {
@@ -1298,6 +1300,7 @@ class _SettingsState extends State<SettingsScreen> {
             child: Text(busy ? 'Вход…' : 'Войти'),
           ),
         ],
+        const UpdateSettingsTile(),
       ],
     );
   }

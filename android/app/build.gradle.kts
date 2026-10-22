@@ -65,6 +65,11 @@ flutter {
     source = "../.."
 }
 
+dependencies {
+    implementation("androidx.core:core:1.13.1")
+    testImplementation("junit:junit:4.13.2")
+}
+
 gradle.taskGraph.whenReady {
     if (allTasks.any { it.name.contains("Release") } && !signingFile.exists()) {
         error("Release signing requires android/key.properties. See README.")

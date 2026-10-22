@@ -313,8 +313,11 @@ void main() {
     await t.pumpAndSettle();
     await t.tap(find.byTooltip('Настройки'));
     await t.pumpAndSettle();
-    expect(t.getSize(find.byType(FormPanel)).width, lessThanOrEqualTo(640));
-    expect(t.getCenter(find.byType(FormPanel)).dx, closeTo(960, 1));
+    expect(
+      t.getSize(find.byType(FormPanel).first).width,
+      lessThanOrEqualTo(640),
+    );
+    expect(t.getCenter(find.byType(FormPanel).first).dx, closeTo(960, 1));
     await t.binding.handlePopRoute();
     await t.pumpAndSettle();
     await t.tap(find.text('Календарь'));
