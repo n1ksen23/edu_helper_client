@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import 'api.dart';
+import 'pages.dart';
 import 'main.dart' show showError;
 
 Future<void> editHomework(
@@ -81,7 +82,7 @@ class _HomeworkEditorState extends State<HomeworkEditor> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => EditorScaffold(
     appBar: AppBar(
       title: Text(
         widget.homework == null ? 'Новое задание' : 'Редактирование ДЗ',
@@ -176,63 +177,11 @@ Future<void> editSchedule(
     builder: (_) => ScheduleEditor(state: s, day: day),
   ),
 );
-Future<void> editTemplate(BuildContext context, AppState s) async {
-  final weekday = await showDialog<int>(
-    context: context,
-    builder: (c) => SimpleDialog(
-      title: const Text('Шаблон дня недели'),
-      children: [
-        for (int n = 1; n <= 6; n++)
-          SimpleDialogOption(
-            onPressed: () => Navigator.pop(c, n),
-            child: Text(
-              [
-                'Понедельник',
-                'Вторник',
-                'Среда',
-                'Четверг',
-                'Пятница',
-                'Суббота',
-              ][n - 1],
-            ),
-          ),
-      ],
-    ),
-  );
-  if (weekday == null || !context.mounted) return;
-  try {
-    final data = await s.api.request('/groups/${s.group}/templates/$weekday');
-    if (context.mounted) {
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => ScheduleEditor(
-            state: s,
-            day: {
-              ...data,
-              'date': iso(
-                DateTime(2026, 10, 19).add(Duration(days: weekday - 1)),
-              ),
-            },
-            weekday: weekday,
-          ),
-        ),
-      );
-    }
-  } catch (e) {
-    if (context.mounted) showError(context, e);
-  }
-}
 
 class ScheduleEditor extends StatefulWidget {
   final AppState state;
   final Map<String, dynamic> day;
-  final int? weekday;
-  const ScheduleEditor({
-    super.key,
-    required this.state,
-    required this.day,
-    this.weekday,
-  });
+  const ScheduleEditor({super.key, required this.state, required this.day});
   @override
   State<ScheduleEditor> createState() => _ScheduleEditorState();
 }
@@ -240,7 +189,10 @@ class ScheduleEditor extends StatefulWidget {
 class _ScheduleEditorState extends State<ScheduleEditor> {
   late bool shortened;
   late List<Map<String, dynamic>> lessons;
-  List<dynamic> subgroups = [];
+  final List<dynamic> subgroups = const [
+    {'id': 1, 'name': 'Пг 1'},
+    {'id': 2, 'name': 'Пг 2'},
+  ];
   bool busy = false;
   late Future<void> loading;
   AppState get s => widget.state;
@@ -256,9 +208,7 @@ class _ScheduleEditorState extends State<ScheduleEditor> {
   }
 
   Future<void> load() async {
-    subgroups = await s.api.request('/groups/${s.group}/subgroups');
-    // Fetch the raw day for editing so upper/lower rows are not lost by the public calendar filter.
-    if (widget.weekday == null) {
+    {
       final raw = await s.api.request(
         '/groups/${s.group}/days/${widget.day['date']}',
       );
@@ -282,7 +232,6 @@ class _ScheduleEditorState extends State<ScheduleEditor> {
               'teacher',
               'room',
               'subgroup_id',
-              'week',
             ])
               if (l.containsKey(key)) key: l[key],
           },
@@ -294,7 +243,7 @@ class _ScheduleEditorState extends State<ScheduleEditor> {
     setState(() => busy = true);
     try {
       await s.api.request(
-        '/groups/${s.group}/${widget.weekday == null ? 'days/${widget.day['date']}' : 'templates/${widget.weekday}'}',
+        '/groups/${s.group}/days/${widget.day['date']}',
         method: 'PUT',
         body: payload(),
       );
@@ -355,8 +304,7 @@ class _ScheduleEditorState extends State<ScheduleEditor> {
     }
     setState(() => busy = true);
     try {
-      final path =
-          '/groups/${s.group}/${widget.weekday == null ? 'days/${widget.day['date']}' : 'templates/${widget.weekday}'}';
+      final path = '/groups/${s.group}/days/${widget.day['date']}';
       await s.api.request(path, method: 'PUT', body: payload());
       await s.api.request(
         '$path/repeat',
@@ -399,7 +347,12 @@ class _ScheduleEditorState extends State<ScheduleEditor> {
       MaterialPageRoute(
         builder: (_) => LessonEditor(
           lesson: index == null ? null : lessons[index],
-          subgroups: subgroups,
+          initialSlot:
+              (lessons
+                          .map((l) => l['slot'] as int)
+                          .fold<int>(0, (a, b) => a > b ? a : b) +
+                      1)
+                  .clamp(1, 100),
         ),
       ),
     );
@@ -416,14 +369,8 @@ class _ScheduleEditorState extends State<ScheduleEditor> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      title: Text(
-        widget.weekday == null
-            ? 'Расписание · ${iso(date)}'
-            : 'Недельный шаблон',
-      ),
-    ),
+  Widget build(BuildContext context) => EditorScaffold(
+    appBar: AppBar(title: Text('Расписание · ${iso(date)}')),
     body: SafeArea(
       child: FutureBuilder<void>(
         future: loading,
@@ -460,13 +407,7 @@ class _ScheduleEditorState extends State<ScheduleEditor> {
                     title: Text(
                       '${lessons[i]['slot']}. ${lessons[i]['subject']}',
                     ),
-                    subtitle: Text(
-                      '${lessons[i]['week'] == 'both'
-                          ? 'Обе недели'
-                          : lessons[i]['week'] == 'upper'
-                          ? 'Верхняя'
-                          : 'Нижняя'} · ${lessons[i]['room'] ?? ''}',
-                    ),
+                    subtitle: Text('${lessons[i]['room'] ?? ''}'),
                     onTap: () => lesson(i),
                     trailing: IconButton(
                       tooltip: 'Удалить пару',
@@ -475,7 +416,7 @@ class _ScheduleEditorState extends State<ScheduleEditor> {
                     ),
                   ),
                 ),
-              if (date.weekday != 7 || widget.weekday != null)
+              if (date.weekday != 7)
                 OutlinedButton.icon(
                   onPressed: busy ? null : () => lesson(),
                   icon: const Icon(Icons.add),
@@ -542,39 +483,38 @@ String timeFor(int slot, bool short) {
 
 class LessonEditor extends StatefulWidget {
   final Map<String, dynamic>? lesson;
-  final List<dynamic> subgroups;
-  const LessonEditor({super.key, this.lesson, required this.subgroups});
+  final int initialSlot;
+  const LessonEditor({super.key, this.lesson, this.initialSlot = 1});
   @override
   State<LessonEditor> createState() => _LessonEditorState();
 }
 
 class _LessonEditorState extends State<LessonEditor> {
   final form = GlobalKey<FormState>();
-  late TextEditingController slot, subject, teacher, room;
-  late String week;
+  late TextEditingController subject, teacher, room;
+  late int slot;
   int? subgroup;
   @override
   void initState() {
     super.initState();
     final l = widget.lesson ?? {};
-    slot = TextEditingController(text: '${l['slot'] ?? 1}');
+    slot = l['slot'] ?? widget.initialSlot;
     subject = TextEditingController(text: l['subject'] ?? '');
     teacher = TextEditingController(text: l['teacher'] ?? '');
     room = TextEditingController(text: l['room'] ?? '');
-    week = l['week'] ?? 'both';
     subgroup = l['subgroup_id'];
   }
 
   @override
   void dispose() {
-    for (final c in [slot, subject, teacher, room]) {
+    for (final c in [subject, teacher, room]) {
       c.dispose();
     }
     super.dispose();
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => EditorScaffold(
     appBar: AppBar(title: const Text('Учебная пара')),
     body: SafeArea(
       child: Form(
@@ -582,16 +522,34 @@ class _LessonEditorState extends State<LessonEditor> {
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
-            TextFormField(
-              controller: slot,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: 'Номер пары'),
-              validator: (v) {
-                final n = int.tryParse(v ?? '');
-                return n == null || n < 1 || n > 100
-                    ? 'Введите номер от 1 до 100'
-                    : null;
-              },
+            Row(
+              children: [
+                const Expanded(
+                  child: Text('Номер пары', style: TextStyle(fontSize: 17)),
+                ),
+                IconButton.filledTonal(
+                  tooltip: 'Уменьшить номер пары',
+                  onPressed: slot <= 1 ? null : () => setState(() => slot--),
+                  icon: const Icon(Icons.keyboard_arrow_down_rounded),
+                ),
+                SizedBox(
+                  width: 52,
+                  child: Center(
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Text(
+                        '$slot',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                    ),
+                  ),
+                ),
+                IconButton.filledTonal(
+                  tooltip: 'Увеличить номер пары',
+                  onPressed: slot >= 100 ? null : () => setState(() => slot++),
+                  icon: const Icon(Icons.keyboard_arrow_up_rounded),
+                ),
+              ],
             ),
             const SizedBox(height: 16),
             TextFormField(
@@ -613,27 +571,13 @@ class _LessonEditorState extends State<LessonEditor> {
               decoration: const InputDecoration(labelText: 'Аудитория'),
             ),
             const SizedBox(height: 16),
-            DropdownButtonFormField<String>(
-              initialValue: week,
-              decoration: const InputDecoration(labelText: 'Неделя'),
-              items: const [
-                DropdownMenuItem(value: 'both', child: Text('Обе недели')),
-                DropdownMenuItem(value: 'upper', child: Text('Верхняя')),
-                DropdownMenuItem(value: 'lower', child: Text('Нижняя')),
-              ],
-              onChanged: (v) => week = v!,
-            ),
-            const SizedBox(height: 16),
             DropdownButtonFormField<int>(
               initialValue: subgroup ?? 0,
               decoration: const InputDecoration(labelText: 'Подгруппа'),
-              items: [
-                const DropdownMenuItem(value: 0, child: Text('Вся группа')),
-                for (final g in widget.subgroups)
-                  DropdownMenuItem(
-                    value: g['id'] as int,
-                    child: Text(g['name']),
-                  ),
+              items: const [
+                DropdownMenuItem(value: 0, child: Text('Вся группа')),
+                DropdownMenuItem(value: 1, child: Text('Пг 1')),
+                DropdownMenuItem(value: 2, child: Text('Пг 2')),
               ],
               onChanged: (v) => subgroup = v == 0 ? null : v,
             ),
@@ -642,11 +586,10 @@ class _LessonEditorState extends State<LessonEditor> {
               onPressed: () {
                 if (form.currentState!.validate()) {
                   Navigator.pop(context, {
-                    'slot': int.parse(slot.text),
+                    'slot': slot,
                     'subject': subject.text.trim(),
                     'teacher': teacher.text.trim(),
                     'room': room.text.trim(),
-                    'week': week,
                     'subgroup_id': subgroup,
                   });
                 }
@@ -656,122 +599,6 @@ class _LessonEditorState extends State<LessonEditor> {
           ],
         ),
       ),
-    ),
-  );
-}
-
-Future<void> editSubgroups(BuildContext context, AppState s) =>
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => SubgroupsEditor(state: s)));
-
-class SubgroupsEditor extends StatefulWidget {
-  final AppState state;
-  const SubgroupsEditor({super.key, required this.state});
-  @override
-  State<SubgroupsEditor> createState() => _SubgroupsEditorState();
-}
-
-class _SubgroupsEditorState extends State<SubgroupsEditor> {
-  late Future<dynamic> data;
-  AppState get s => widget.state;
-  @override
-  void initState() {
-    super.initState();
-    load();
-  }
-
-  void load() {
-    data = s.api.request('/groups/${s.group}/subgroups');
-  }
-
-  Future<void> edit([Map<String, dynamic>? g]) async {
-    final controller = TextEditingController(text: g?['name'] ?? '');
-    final name = await showDialog<String>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Подгруппа'),
-        content: TextField(
-          controller: controller,
-          maxLength: 100,
-          decoration: const InputDecoration(labelText: 'Название'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c),
-            child: const Text('Отмена'),
-          ),
-          FilledButton(
-            onPressed: () {
-              if (controller.text.trim().isNotEmpty) {
-                Navigator.pop(c, controller.text.trim());
-              }
-            },
-            child: const Text('Сохранить'),
-          ),
-        ],
-      ),
-    );
-    if (name == null) return;
-    try {
-      await s.api.request(
-        '/groups/${s.group}/subgroups${g == null ? '' : '/${g['id']}'}',
-        method: g == null ? 'POST' : 'PUT',
-        body: {'name': name},
-      );
-      if (mounted) setState(load);
-    } catch (e) {
-      if (mounted) showError(context, e);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Подгруппы')),
-    floatingActionButton: FloatingActionButton(
-      onPressed: edit,
-      child: const Icon(Icons.add),
-    ),
-    body: FutureBuilder<dynamic>(
-      future: data,
-      builder: (c, snapshot) {
-        if (snapshot.hasError) {
-          return Center(
-            child: TextButton(
-              onPressed: () => setState(load),
-              child: Text('${snapshot.error} · Повторить'),
-            ),
-          );
-        }
-        if (!snapshot.hasData) {
-          return const Center(child: CircularProgressIndicator());
-        }
-        final rows = snapshot.data as List;
-        return ListView(
-          children: [
-            for (final g in rows)
-              ListTile(
-                title: Text(g['name']),
-                onTap: () => edit(g),
-                trailing: IconButton(
-                  tooltip: 'Удалить',
-                  icon: const Icon(Icons.delete_outline),
-                  onPressed: () async {
-                    if (!await confirm(context, 'Удалить подгруппу?')) return;
-                    try {
-                      await s.api.request(
-                        '/groups/${s.group}/subgroups/${g['id']}',
-                        method: 'DELETE',
-                      );
-                      if (mounted) setState(load);
-                    } catch (e) {
-                      if (context.mounted) showError(context, e);
-                    }
-                  },
-                ),
-              ),
-          ],
-        );
-      },
     ),
   );
 }

@@ -12,10 +12,20 @@ import 'package:edu_helper/main.dart';
 import 'package:edu_helper/api.dart';
 import 'package:edu_helper/editors.dart';
 import 'package:edu_helper/design.dart';
+import 'package:edu_helper/pages.dart';
 
 Map<String, dynamic> day(String date) => {
   'date': date,
-  'week': 'lower',
+  'week':
+      DateTime.parse(date)
+                  .subtract(Duration(days: DateTime.parse(date).weekday - 1))
+                  .difference(DateTime(2026, 10, 19))
+                  .inDays ~/
+              7 %
+              2 ==
+          0
+      ? 'lower'
+      : 'upper',
   'shortened': false,
   'lessons': [
     {
@@ -241,6 +251,112 @@ void main() {
           .value,
       true,
     );
+    await t.pumpWidget(const SizedBox());
+  });
+  test('Sunday opens upcoming Monday', () {
+    expect(initialScheduleDate(DateTime(2026, 10, 25)), DateTime(2026, 10, 26));
+    expect(initialScheduleDate(DateTime(2026, 10, 24)), DateTime(2026, 10, 24));
+  });
+  testWidgets('Schedule has six days and follows date parity', (t) async {
+    final s = await state();
+    await t.pumpWidget(app(s));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Расписание'));
+    await t.pumpAndSettle();
+    expect(find.text('Вс'), findsNothing);
+    expect(find.byType(SegmentControl<String>), findsNothing);
+    await t.tap(find.byTooltip('Следующая неделя'));
+    await t.pumpAndSettle();
+    final initial = initialScheduleDate(moscowNow());
+    final next = initial.add(const Duration(days: 7));
+    expect(
+      find.text(
+        day(iso(next))['week'] == 'upper' ? 'Верхняя неделя' : 'Нижняя неделя',
+      ),
+      findsOneWidget,
+    );
+    await t.pumpWidget(const SizedBox());
+  });
+  testWidgets('Submit group application validates and confirms', (t) async {
+    final s = await state(selected: false);
+    await t.pumpWidget(app(s));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Добавить свою группу'));
+    await t.pumpAndSettle();
+    await t.ensureVisible(find.text('Отправить заявку'));
+    await t.tap(find.text('Отправить заявку'));
+    await t.pumpAndSettle();
+    expect(find.text('Укажите номер группы'), findsOneWidget);
+    await t.enterText(find.byType(TextFormField).at(0), '5101');
+    await t.enterText(find.byType(TextFormField).at(1), 'test@example.org');
+    await t.ensureVisible(find.text('Отправить заявку'));
+    await t.tap(find.text('Отправить заявку'));
+    await t.pumpAndSettle();
+    expect(find.text('Заявка отправлена'), findsOneWidget);
+    await t.pumpWidget(const SizedBox());
+  });
+  testWidgets('Monitor layout bounds settings and calendar', (t) async {
+    t.view.physicalSize = const Size(1920, 1080);
+    t.view.devicePixelRatio = 1;
+    addTearDown(t.view.resetPhysicalSize);
+    addTearDown(t.view.resetDevicePixelRatio);
+    final s = await state();
+    await t.pumpWidget(app(s));
+    await t.pumpAndSettle();
+    await t.tap(find.byTooltip('Настройки'));
+    await t.pumpAndSettle();
+    expect(t.getSize(find.byType(FormPanel)).width, lessThanOrEqualTo(640));
+    expect(t.getCenter(find.byType(FormPanel)).dx, closeTo(960, 1));
+    await t.binding.handlePopRoute();
+    await t.pumpAndSettle();
+    await t.tap(find.text('Календарь'));
+    await t.pumpAndSettle();
+    final grid = t.getRect(find.byKey(const ValueKey('month-grid-panel')));
+    final details = t.getRect(find.byType(DayCard));
+    expect(grid.height, lessThan(350));
+    expect(grid.width, lessThanOrEqualTo(320));
+    expect(details.left, greaterThan(grid.right));
+    expect(t.takeException(), isNull);
+    await t.pumpWidget(const SizedBox());
+  });
+  testWidgets('Fixed subgroup labels and pair arrow controls', (t) async {
+    await t.pumpWidget(
+      MaterialApp(
+        theme: originalTheme(Brightness.dark),
+        home: const LessonEditor(),
+      ),
+    );
+    await t.pumpAndSettle();
+    expect(find.text('Неделя'), findsNothing);
+    expect(find.text('Обе недели'), findsNothing);
+    expect(find.byType(TextFormField), findsNWidgets(3));
+    await t.tap(find.byTooltip('Увеличить номер пары'));
+    await t.pump();
+    expect(find.text('2'), findsOneWidget);
+    await t.tap(find.byTooltip('Уменьшить номер пары'));
+    await t.pump();
+    expect(find.text('1'), findsOneWidget);
+    await t.tap(find.byType(DropdownButtonFormField<int>));
+    await t.pumpAndSettle();
+    expect(find.text('Пг 1'), findsOneWidget);
+    expect(find.text('Пг 2'), findsOneWidget);
+    expect(find.text('Пг 3'), findsNothing);
+    await t.pumpWidget(const SizedBox());
+  });
+  testWidgets('Editor settings have no schedule or subgroup management', (
+    t,
+  ) async {
+    final s = await state();
+    s.api.access = 'test';
+    s.api.role = 'editor';
+    s.api.editorGroup = 1;
+    await t.pumpWidget(app(s));
+    await t.pumpAndSettle();
+    await t.tap(find.byTooltip('Настройки'));
+    await t.pumpAndSettle();
+    expect(find.text('Недельные шаблоны'), findsNothing);
+    expect(find.text('Подгруппы'), findsNothing);
+    expect(find.text('Редактор'), findsOneWidget);
     await t.pumpWidget(const SizedBox());
   });
 }

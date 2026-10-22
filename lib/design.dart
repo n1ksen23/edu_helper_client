@@ -206,47 +206,60 @@ class OriginalTabBar extends StatelessWidget {
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
-              child: Row(
-                children: [
-                  for (int n = 0; n < 3; n++)
-                    Expanded(
-                      child: Semantics(
-                        selected: index == n,
-                        button: true,
-                        child: InkResponse(
-                          onTap: () => onChanged(n),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 4),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  icons[n],
-                                  size: 26,
-                                  color: index == n
-                                      ? Theme.of(context).colorScheme.primary
-                                      : hintGrey,
+              child: Center(
+                heightFactor: 1,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 760),
+                  child: Row(
+                    children: [
+                      for (int n = 0; n < 3; n++)
+                        Expanded(
+                          child: Semantics(
+                            selected: index == n,
+                            button: true,
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => onChanged(n),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 4,
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  labels[n],
-                                  style: TextStyle(
-                                    fontSize: 10.5,
-                                    fontWeight: index == n
-                                        ? FontWeight.w600
-                                        : FontWeight.w500,
-                                    color: index == n
-                                        ? Theme.of(context).colorScheme.primary
-                                        : hintGrey,
-                                  ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      icons[n],
+                                      size: 26,
+                                      color: index == n
+                                          ? Theme.of(context)
+                                                .colorScheme
+                                                .primary
+                                          : hintGrey,
+                                    ),
+                                    const SizedBox(height: 2),
+                                    Text(
+                                      labels[n],
+                                      style: TextStyle(
+                                        fontSize: 10.5,
+                                        fontWeight: index == n
+                                            ? FontWeight.w600
+                                            : FontWeight.w500,
+                                        color: index == n
+                                            ? Theme.of(context)
+                                                  .colorScheme
+                                                  .primary
+                                            : hintGrey,
+                                      ),
+                                    ),
+                                  ],
                                 ),
-                              ],
+                              ),
                             ),
                           ),
                         ),
-                      ),
-                    ),
-                ],
+                    ],
+                  ),
+                ),
               ),
             ),
           ),

@@ -10,6 +10,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api.dart';
 import 'editors.dart';
 import 'design.dart';
+import 'pages.dart';
 
 final appProvider = Provider<AppState>((ref) => throw UnimplementedError());
 Future<void> main() async {
@@ -39,9 +40,9 @@ class _EduAppState extends ConsumerState<EduApp> {
       GoRoute(path: '/groups', builder: (c, s) => const GroupsScreen()),
       GoRoute(
         path: '/settings',
-        builder: (c, s) => Scaffold(
-          appBar: AppBar(title: const Text('Настройки')),
-          body: SafeArea(child: SettingsScreen(state: ref.read(appProvider))),
+        builder: (c, s) => AppPage(
+          title: 'Настройки',
+          body: SettingsScreen(state: ref.read(appProvider)),
         ),
       ),
     ],
@@ -149,36 +150,37 @@ class _GroupsState extends ConsumerState<GroupsScreen> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(title: const Text('Выберите группу')),
-    body: SafeArea(
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: TextField(
-              decoration: const InputDecoration(
-                labelText: 'Номер группы',
-                prefixIcon: Icon(Icons.search),
-              ),
-              onChanged: (v) {
-                query = v;
-                debounce?.cancel();
-                debounce = Timer(const Duration(milliseconds: 300), () {
-                  if (mounted) setState(load);
-                });
-              },
+  Widget build(BuildContext context) => AppPage(
+    title: 'Выберите группу',
+    body: Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: TextField(
+            decoration: const InputDecoration(
+              labelText: 'Номер группы',
+              prefixIcon: Icon(Icons.search),
             ),
+            onChanged: (v) {
+              query = v;
+              debounce?.cancel();
+              debounce = Timer(const Duration(milliseconds: 300), () {
+                if (mounted) setState(load);
+              });
+            },
           ),
-          Expanded(
-            child: LoadView(
-              future: data,
-              retry: () => setState(load),
-              builder: (rows) => rows.isEmpty
-                  ? const Center(child: Text('Опубликованных групп нет'))
-                  : ListView.builder(
-                      itemCount: rows.length,
-                      itemBuilder: (c, i) => ListTile(
+        ),
+        Expanded(
+          child: LoadView(
+            future: data,
+            retry: () => setState(load),
+            builder: (rows) => rows.isEmpty
+                ? const Center(child: Text('Опубликованных групп нет'))
+                : ListView.builder(
+                    itemCount: rows.length,
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                    itemBuilder: (c, i) => Card(
+                      child: ListTile(
                         leading: const CircleAvatar(
                           child: Icon(Icons.school_outlined),
                         ),
@@ -191,10 +193,26 @@ class _GroupsState extends ConsumerState<GroupsScreen> {
                         },
                       ),
                     ),
+                  ),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 20),
+          child: SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) =>
+                      GroupRequestScreen(state: ref.read(appProvider)),
+                ),
+              ),
+              icon: const Icon(Icons.add_rounded),
+              label: const Text('Добавить свою группу'),
             ),
           ),
-        ],
-      ),
+        ),
+      ],
     ),
   );
 }
@@ -510,18 +528,15 @@ class ScheduleScreen extends StatefulWidget {
 }
 
 class _ScheduleState extends State<ScheduleScreen> {
-  DateTime monday = DateTime(
-    moscowNow().year,
-    moscowNow().month,
-    moscowNow().day,
-  ).subtract(Duration(days: moscowNow().weekday - 1));
-  int selectedDay = moscowNow().weekday - 1;
-  String? preview;
-  String actualWeek = 'lower';
+  late DateTime monday;
+  int selectedDay = 0;
   late Future<dynamic> data;
   @override
   void initState() {
     super.initState();
+    final initial = initialScheduleDate(moscowNow());
+    monday = initial.subtract(Duration(days: initial.weekday - 1));
+    selectedDay = initial.weekday - 1;
     load();
   }
 
@@ -531,12 +546,8 @@ class _ScheduleState extends State<ScheduleScreen> {
 
   Future<dynamic> fetch() async {
     final path =
-        '/groups/${widget.state.group}/calendar?start=${iso(monday)}&end=${iso(monday.add(const Duration(days: 6)))}';
-    final actual = await widget.state.api.request(path);
-    actualWeek = actual[0]['week'];
-    return preview == null
-        ? actual
-        : widget.state.api.request('$path&preview=$preview');
+        '/groups/${widget.state.group}/calendar?start=${iso(monday)}&end=${iso(monday.add(const Duration(days: 5)))}';
+    return widget.state.api.request(path);
   }
 
   @override
@@ -546,30 +557,10 @@ class _ScheduleState extends State<ScheduleScreen> {
     builder: (days) => ListView(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
       children: [
-        SegmentControl<String>(
-          value: preview ?? actualWeek,
-          labels: {
-            'upper': 'Верхняя${actualWeek == 'upper' ? ' · сейчас' : ''}',
-            'lower': 'Нижняя${actualWeek == 'lower' ? ' · сейчас' : ''}',
-          },
-          onChanged: (v) => setState(() {
-            preview = v;
-            load();
-          }),
-        ),
-        const SizedBox(height: 10),
         SegmentControl<int>(
           small: true,
           value: selectedDay,
-          labels: const {
-            0: 'Пн',
-            1: 'Вт',
-            2: 'Ср',
-            3: 'Чт',
-            4: 'Пт',
-            5: 'Сб',
-            6: 'Вс',
-          },
+          labels: const {0: 'Пн', 1: 'Вт', 2: 'Ср', 3: 'Чт', 4: 'Пт', 5: 'Сб'},
           onChanged: (v) => setState(() => selectedDay = v),
         ),
         const SizedBox(height: 8),
@@ -585,7 +576,7 @@ class _ScheduleState extends State<ScheduleScreen> {
               icon: const Icon(Icons.chevron_left),
             ),
             Text(
-              '${DateFormat('d MMM', 'ru').format(monday)} — ${DateFormat('d MMM', 'ru').format(monday.add(const Duration(days: 6)))}',
+              '${DateFormat('d MMM', 'ru').format(monday)} — ${DateFormat('d MMM', 'ru').format(monday.add(const Duration(days: 5)))}',
               style: const TextStyle(fontSize: 14, color: hintGrey),
             ),
             IconButton(
@@ -865,83 +856,88 @@ class _CalendarState extends State<CalendarScreen> {
       final index = selected.month == month.month ? selected.day - 1 : 0;
       final day = days[index];
       final offset = month.weekday - 1;
-      return ListView(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    capital(DateFormat('LLLL yyyy', 'ru').format(month)),
-                    style: display(22, FontWeight.w600),
-                  ),
+      final parts = <Widget>[
+        Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Row(
+            children: [
+              Expanded(
+                child: Text(
+                  capital(DateFormat('LLLL yyyy', 'ru').format(month)),
+                  style: display(22, FontWeight.w600),
                 ),
-                monthButton(Icons.chevron_left, 'Предыдущий месяц', -1),
-                const SizedBox(width: 8),
-                monthButton(Icons.chevron_right, 'Следующий месяц', 1),
-              ],
-            ),
+              ),
+              monthButton(Icons.chevron_left, 'Предыдущий месяц', -1),
+              const SizedBox(width: 8),
+              monthButton(Icons.chevron_right, 'Следующий месяц', 1),
+            ],
           ),
-          Container(
-            padding: const EdgeInsets.fromLTRB(8, 12, 8, 8),
-            decoration: BoxDecoration(
-              color: cardColor(context),
-              borderRadius: BorderRadius.circular(16),
-            ),
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    for (final label in [
-                      'Пн',
-                      'Вт',
-                      'Ср',
-                      'Чт',
-                      'Пт',
-                      'Сб',
-                      'Вс',
-                    ])
-                      Expanded(
-                        child: Center(
-                          child: Text(
-                            label,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600,
-                              color: hintGrey,
-                            ),
+        ),
+        Container(
+          key: const ValueKey('month-grid-panel'),
+          padding: const EdgeInsets.fromLTRB(8, 12, 8, 8),
+          decoration: BoxDecoration(
+            color: cardColor(context),
+            borderRadius: BorderRadius.circular(16),
+          ),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  for (final label in [
+                    'Пн',
+                    'Вт',
+                    'Ср',
+                    'Чт',
+                    'Пт',
+                    'Сб',
+                    'Вс',
+                  ])
+                    Expanded(
+                      child: Center(
+                        child: Text(
+                          label,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: hintGrey,
                           ),
                         ),
                       ),
-                  ],
+                    ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 7,
+                  mainAxisExtent:
+                      MediaQuery.textScalerOf(context).scale(18) > 25 ? 60 : 48,
                 ),
-                const SizedBox(height: 6),
-                GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 7,
-                  ),
-                  itemCount: days.length + offset,
-                  itemBuilder: (c, i) {
-                    if (i < offset) return const SizedBox();
-                    final n = i - offset + 1;
-                    final row = days[n - 1];
-                    final tasks = row['homework'] as List;
-                    final isSelected = selected.day == n;
-                    final now = moscowNow();
-                    final isToday =
-                        iso(DateTime(month.year, month.month, n)) == iso(now);
-                    final past = DateTime(
-                      month.year,
-                      month.month,
-                      n,
-                    ).isBefore(DateTime(now.year, now.month, now.day));
-                    final blue = Theme.of(context).colorScheme.primary;
-                    return Padding(
-                      padding: const EdgeInsets.all(1),
+                itemCount: days.length + offset,
+                itemBuilder: (c, i) {
+                  if (i < offset) return const SizedBox();
+                  final n = i - offset + 1;
+                  final row = days[n - 1];
+                  final tasks = row['homework'] as List;
+                  final isSelected = selected.day == n;
+                  final now = moscowNow();
+                  final isToday =
+                      iso(DateTime(month.year, month.month, n)) == iso(now);
+                  final past = DateTime(
+                    month.year,
+                    month.month,
+                    n,
+                  ).isBefore(DateTime(now.year, now.month, now.day));
+                  final blue = Theme.of(context).colorScheme.primary;
+                  return Center(
+                    child: SizedBox(
+                      width: 42,
+                      height: MediaQuery.textScalerOf(context).scale(18) > 25
+                          ? 54
+                          : 42,
                       child: Material(
                         color: isSelected ? blue : Colors.transparent,
                         shape: const CircleBorder(),
@@ -989,65 +985,87 @@ class _CalendarState extends State<CalendarScreen> {
                           ),
                         ),
                       ),
-                    );
-                  },
-                ),
-              ],
-            ),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
-          const SizedBox(height: 10),
-          DayCard(
-            day: day,
-            state: widget.state,
-            onChanged: () => setState(load),
-          ),
-          if ((day['homework'] as List).isNotEmpty) ...[
-            const Padding(
-              padding: EdgeInsets.fromLTRB(14, 22, 14, 7),
-              child: Text(
-                'ЗАДАНИЯ',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: hintGrey,
-                  letterSpacing: .5,
-                ),
+        ),
+        const SizedBox(height: 10),
+        DayCard(day: day, state: widget.state, onChanged: () => setState(load)),
+        if ((day['homework'] as List).isNotEmpty) ...[
+          const Padding(
+            padding: EdgeInsets.fromLTRB(14, 22, 14, 7),
+            child: Text(
+              'ЗАДАНИЯ',
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: hintGrey,
+                letterSpacing: .5,
               ),
             ),
-            for (int i = 0; i < (day['homework'] as List).length; i++)
-              HomeworkRow(
-                homework: day['homework'][i],
-                archive: DateTime.parse(day['date']).isBefore(
-                  DateTime(
-                    moscowNow().year,
-                    moscowNow().month,
-                    moscowNow().day,
-                  ),
-                ),
-                first: i == 0,
-                last: i == day['homework'].length - 1,
-                onEdit: widget.state.api.canEdit(widget.state.group)
-                    ? () async {
-                        await editHomework(
-                          context,
-                          widget.state,
-                          day['homework'][i],
-                        );
-                        if (mounted) setState(load);
-                      }
-                    : null,
+          ),
+          for (int i = 0; i < (day['homework'] as List).length; i++)
+            HomeworkRow(
+              homework: day['homework'][i],
+              archive: DateTime.parse(day['date']).isBefore(
+                DateTime(moscowNow().year, moscowNow().month, moscowNow().day),
               ),
-          ],
-          if (widget.state.api.canEdit(widget.state.group))
-            TextButton.icon(
-              onPressed: () async {
-                await editHomework(context, widget.state, null, selected);
-                if (mounted) setState(load);
-              },
-              icon: const Icon(Icons.add),
-              label: const Text('Добавить задание'),
+              first: i == 0,
+              last: i == day['homework'].length - 1,
+              onEdit: widget.state.api.canEdit(widget.state.group)
+                  ? () async {
+                      await editHomework(
+                        context,
+                        widget.state,
+                        day['homework'][i],
+                      );
+                      if (mounted) setState(load);
+                    }
+                  : null,
             ),
         ],
+        if (widget.state.api.canEdit(widget.state.group))
+          TextButton.icon(
+            onPressed: () async {
+              await editHomework(context, widget.state, null, selected);
+              if (mounted) setState(load);
+            },
+            icon: const Icon(Icons.add),
+            label: const Text('Добавить задание'),
+          ),
+      ];
+      return LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth >= 700 &&
+              MediaQuery.textScalerOf(context).scale(1) <= 1.3) {
+            return SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 320,
+                    child: Column(children: parts.take(2).toList()),
+                  ),
+                  const SizedBox(width: 20),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: parts.skip(3).toList(),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+            children: parts,
+          );
+        },
       );
     },
   );
@@ -1084,28 +1102,113 @@ class _SettingsState extends State<SettingsScreen> {
     super.dispose();
   }
 
+  Future<void> login() async {
+    if (busy) return;
+    if (password.text.isEmpty) {
+      showError(context, 'Введите пароль');
+      return;
+    }
+    FocusScope.of(context).unfocus();
+    setState(() => busy = true);
+    final s = widget.state;
+    try {
+      await s.api.accept(
+        await s.api.request(
+          '/auth/login',
+          method: 'POST',
+          body: {'password': password.text, if (!admin) 'group_id': s.group},
+        ),
+      );
+      password.clear();
+      s.changed();
+    } catch (e) {
+      if (mounted) showError(context, e);
+    } finally {
+      if (mounted) setState(() => busy = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final s = widget.state;
     return ListView(
-      padding: const EdgeInsets.all(20),
+      padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
       children: [
-        SwitchListTile(
-          title: const Text('Тёмная тема'),
-          value: s.dark,
-          onChanged: s.theme,
+        ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Material(
+            color: cardColor(context),
+            child: Column(
+              children: [
+                SwitchListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
+                  secondary: const Icon(Icons.dark_mode_outlined),
+                  title: const Text(
+                    'Тёмная тема',
+                    style: TextStyle(fontSize: 17),
+                  ),
+                  value: s.dark,
+                  onChanged: s.theme,
+                ),
+                const Padding(
+                  padding: EdgeInsets.only(left: 16),
+                  child: Divider(height: .5, thickness: .5),
+                ),
+                ListTile(
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 6,
+                  ),
+                  leading: const Icon(Icons.school_outlined),
+                  title: const Text('Группа', style: TextStyle(fontSize: 17)),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        s.groupName,
+                        style: const TextStyle(fontSize: 16, color: hintGrey),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.chevron_right, color: hintGrey),
+                    ],
+                  ),
+                  onTap: () => context.push('/groups'),
+                ),
+              ],
+            ),
+          ),
         ),
-        ListTile(
-          title: const Text('Группа'),
-          subtitle: Text(s.groupName),
-          trailing: const Icon(Icons.chevron_right),
-          onTap: () => context.push('/groups'),
+        const Padding(
+          padding: EdgeInsets.fromLTRB(14, 26, 14, 8),
+          child: Text(
+            'РЕДАКТИРОВАНИЕ',
+            style: TextStyle(
+              fontSize: 13,
+              color: hintGrey,
+              fontWeight: FontWeight.w600,
+              letterSpacing: .5,
+            ),
+          ),
         ),
-        const Divider(),
-        Text('Редактирование', style: Theme.of(context).textTheme.titleLarge),
-        const SizedBox(height: 16),
         if (s.api.canEdit(s.group)) ...[
-          Text(s.api.role == 'admin' ? 'Администратор' : 'Редактор'),
+          FormPanel(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                ListTile(
+                  contentPadding: EdgeInsets.zero,
+                  leading: const Icon(Icons.verified_user_outlined),
+                  title: Text(
+                    s.api.role == 'admin' ? 'Администратор' : 'Редактор',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 12),
           TextButton(
             onPressed: () async {
               try {
@@ -1117,53 +1220,38 @@ class _SettingsState extends State<SettingsScreen> {
             },
             child: const Text('Выйти'),
           ),
-          TextButton(
-            onPressed: () => editSubgroups(context, s),
-            child: const Text('Управлять подгруппами'),
-          ),
-          TextButton(
-            onPressed: () => editTemplate(context, s),
-            child: const Text('Недельные шаблоны'),
-          ),
         ] else ...[
-          TextField(
-            controller: password,
-            obscureText: true,
-            autocorrect: false,
-            enableSuggestions: false,
-            decoration: InputDecoration(
-              labelText: admin ? 'Мастер-пароль' : 'Пароль группы',
+          FormPanel(
+            child: Column(
+              children: [
+                TextField(
+                  controller: password,
+                  obscureText: true,
+                  autocorrect: false,
+                  enableSuggestions: false,
+                  textInputAction: TextInputAction.done,
+                  onSubmitted: (_) => login(),
+                  decoration: InputDecoration(
+                    labelText: admin ? 'Мастер-пароль' : 'Пароль группы',
+                    prefixIcon: const Icon(Icons.lock_outline_rounded),
+                  ),
+                ),
+                CheckboxListTile(
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: const Text(
+                    'Вход администратора',
+                    style: TextStyle(fontSize: 15),
+                  ),
+                  value: admin,
+                  onChanged: busy ? null : (v) => setState(() => admin = v!),
+                ),
+              ],
             ),
           ),
-          CheckboxListTile(
-            title: const Text('Вход администратора'),
-            value: admin,
-            onChanged: (v) => setState(() => admin = v!),
-          ),
+          const SizedBox(height: 16),
           FilledButton(
-            onPressed: busy
-                ? null
-                : () async {
-                    setState(() => busy = true);
-                    try {
-                      await s.api.accept(
-                        await s.api.request(
-                          '/auth/login',
-                          method: 'POST',
-                          body: {
-                            'password': password.text,
-                            if (!admin) 'group_id': s.group,
-                          },
-                        ),
-                      );
-                      password.clear();
-                      s.changed();
-                    } catch (e) {
-                      if (context.mounted) showError(context, e);
-                    } finally {
-                      if (mounted) setState(() => busy = false);
-                    }
-                  },
+            onPressed: busy ? null : login,
             child: Text(busy ? 'Вход…' : 'Войти'),
           ),
         ],

@@ -184,3 +184,11 @@ String currentStatus(Map<String, dynamic> day, DateTime now) {
   }
   return 'Перемена · далее ${next.first['start']}: ${next.first['subject']}';
 }
+
+// On Sunday the schedule opens on the upcoming Monday; the calendar still includes Sunday.
+DateTime initialScheduleDate(DateTime now) {
+  final day = DateTime(now.year, now.month, now.day);
+  return now.weekday == DateTime.sunday
+      ? day.add(const Duration(days: 1))
+      : day;
+}
