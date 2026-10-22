@@ -396,4 +396,27 @@ void main() {
       }
     });
   }
+  testWidgets('Day repeat opens options directly and cancelling keeps edits', (
+    t,
+  ) async {
+    final s = await state();
+    await t.pumpWidget(
+      MaterialApp(
+        theme: originalTheme(Brightness.dark),
+        home: ScheduleEditor(state: s, day: day('2026-10-22')),
+      ),
+    );
+    await t.pumpAndSettle();
+    await t.tap(find.byType(SwitchListTile));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Повторить на недели'));
+    await t.pumpAndSettle();
+    expect(find.text('Повторить день'), findsOneWidget);
+    expect(find.byType(DatePickerDialog), findsNothing);
+    expect(find.text('Через неделю · того же типа'), findsOneWidget);
+    await t.tap(find.byTooltip('Назад'));
+    await t.pumpAndSettle();
+    expect(t.widget<SwitchListTile>(find.byType(SwitchListTile)).value, true);
+    await t.pumpWidget(const SizedBox());
+  });
 }
