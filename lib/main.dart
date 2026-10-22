@@ -8,6 +8,8 @@ import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'api.dart';
+import 'admin.dart';
+import 'repeat.dart';
 import 'editors.dart';
 import 'design.dart';
 import 'pages.dart';
@@ -152,6 +154,11 @@ class _GroupsState extends ConsumerState<GroupsScreen> {
   @override
   Widget build(BuildContext context) => AppPage(
     title: 'Выберите группу',
+    action: IconButton(
+      tooltip: 'Настройки',
+      icon: const Icon(Icons.settings_outlined),
+      onPressed: () => context.push('/settings'),
+    ),
     body: Column(
       children: [
         Padding(
@@ -303,7 +310,11 @@ class _ShellState extends ConsumerState<HomeShell> {
                                   await editHomework(context, state);
                                   if (mounted) setState(() => revision++);
                                 },
-                                icon: const Icon(Icons.add, size: 26),
+                                icon: const Icon(
+                                  Icons.add,
+                                  size: 26,
+                                  color: Colors.white,
+                                ),
                               ),
                             IconButton(
                               tooltip: 'Настройки',
@@ -589,6 +600,26 @@ class _ScheduleState extends State<ScheduleScreen> {
             ),
           ],
         ),
+        if (widget.state.api.canEdit(widget.state.group))
+          Align(
+            alignment: Alignment.centerRight,
+            child: TextButton.icon(
+              icon: const Icon(Icons.copy_all_outlined, size: 19),
+              label: const Text('Повторить неделю'),
+              onPressed: () async {
+                await Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => RepeatScheduleScreen(
+                      state: widget.state,
+                      source: monday,
+                      wholeWeek: true,
+                    ),
+                  ),
+                );
+                if (mounted) setState(load);
+              },
+            ),
+          ),
         DayCard(
           day: days[selectedDay],
           state: widget.state,
@@ -1205,6 +1236,18 @@ class _SettingsState extends State<SettingsScreen> {
                     s.api.role == 'admin' ? 'Администратор' : 'Редактор',
                   ),
                 ),
+                if (s.api.role == 'admin') ...[
+                  const Divider(height: 1),
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    leading: const Icon(Icons.admin_panel_settings_outlined),
+                    title: const Text('Заявки и группы'),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => AdminScreen(state: s)),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),

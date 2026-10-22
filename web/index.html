@@ -41,6 +41,23 @@
     For more details:
     * https://docs.flutter.dev/platform-integration/web/initialization
   -->
-  <script src="flutter_bootstrap.js" async></script>
+  <script>
+    (async () => {
+      // Retire the old Flutter worker so releases do not keep serving stale screens.
+      if ('serviceWorker' in navigator) {
+        const registrations = await navigator.serviceWorker.getRegistrations();
+        await Promise.all(registrations.filter(r =>
+          [r.active, r.waiting, r.installing].some(w => w && new URL(w.scriptURL).pathname === '/flutter_service_worker.js')
+        ).map(r => r.unregister()));
+      }
+      if ('caches' in window) {
+        await Promise.all(['flutter-app-cache', 'flutter-temp-cache', 'flutter-app-manifest'].map(name => caches.delete(name)));
+      }
+    })().catch(() => {}).finally(() => {
+      const script = document.createElement('script');
+      script.src = 'flutter_bootstrap.js?v=1.0.2';
+      document.body.appendChild(script);
+    });
+  </script>
 </body>
 </html>

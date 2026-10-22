@@ -13,6 +13,7 @@ import 'package:edu_helper/api.dart';
 import 'package:edu_helper/editors.dart';
 import 'package:edu_helper/design.dart';
 import 'package:edu_helper/pages.dart';
+import 'package:edu_helper/repeat.dart';
 
 Map<String, dynamic> day(String date) => {
   'date': date,
@@ -162,6 +163,13 @@ void main() {
     await t.pumpWidget(app(s));
     await t.pumpAndSettle();
     expect(find.byTooltip('Добавить ДЗ'), findsOneWidget);
+    final addIcon = t.widget<Icon>(
+      find.descendant(
+        of: find.byTooltip('Добавить ДЗ'),
+        matching: find.byIcon(Icons.add),
+      ),
+    );
+    expect(addIcon.color, Colors.white);
     await t.tap(find.byTooltip('Добавить ДЗ'));
     await t.pumpAndSettle();
     expect(find.text('Новое задание'), findsOneWidget);
@@ -357,6 +365,35 @@ void main() {
     expect(find.text('Недельные шаблоны'), findsNothing);
     expect(find.text('Подгруппы'), findsNothing);
     expect(find.text('Редактор'), findsOneWidget);
+    expect(find.text('Заявки и группы'), findsNothing);
     await t.pumpWidget(const SizedBox());
   });
+  for (final width in [360.0, 1920.0]) {
+    testWidgets('Editors constrain layout at width $width', (t) async {
+      t.view.physicalSize = Size(width, 1000);
+      t.view.devicePixelRatio = 1;
+      addTearDown(t.view.resetPhysicalSize);
+      addTearDown(t.view.resetDevicePixelRatio);
+      final s = await state();
+      for (final editor in <Widget>[
+        const LessonEditor(),
+        ScheduleEditor(state: s, day: day('2026-10-22')),
+        RepeatScheduleScreen(
+          state: s,
+          source: DateTime(2026, 10, 19),
+          wholeWeek: true,
+        ),
+      ]) {
+        await t.pumpWidget(
+          MaterialApp(theme: originalTheme(Brightness.dark), home: editor),
+        );
+        await t.pumpAndSettle();
+        final list = t.getRect(find.byType(ListView).first);
+        expect(list.width, lessThanOrEqualTo(640));
+        expect(list.center.dx, closeTo(width / 2, 1));
+        expect(t.takeException(), isNull);
+        await t.pumpWidget(const SizedBox());
+      }
+    });
+  }
 }

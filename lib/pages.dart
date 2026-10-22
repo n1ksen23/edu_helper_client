@@ -6,7 +6,13 @@ import 'design.dart';
 class AppPage extends StatelessWidget {
   final String title;
   final Widget body;
-  const AppPage({super.key, required this.title, required this.body});
+  final Widget? action;
+  const AppPage({
+    super.key,
+    required this.title,
+    required this.body,
+    this.action,
+  });
   @override
   Widget build(BuildContext context) => Scaffold(
     body: SafeArea(
@@ -32,6 +38,7 @@ class AppPage extends StatelessWidget {
                     Expanded(
                       child: Text(title, style: display(32, FontWeight.w800)),
                     ),
+                    ?action,
                   ],
                 ),
               ),

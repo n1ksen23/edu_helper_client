@@ -1,3 +1,5 @@
+import 'repeat.dart';
+
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -261,62 +263,12 @@ class _ScheduleEditorState extends State<ScheduleEditor> {
   }
 
   Future<void> repeat() async {
-    final start = await showDatePicker(
-      context: context,
-      initialDate: date.add(const Duration(days: 7)),
-      firstDate: DateTime(2000),
-      lastDate: DateTime(2100),
-    );
-    if (start == null || !mounted) return;
-    final controller = TextEditingController(text: '4');
-    final weeks = await showDialog<int>(
-      context: context,
-      builder: (c) => AlertDialog(
-        title: const Text('Повторить на недели'),
-        content: TextField(
-          controller: controller,
-          keyboardType: TextInputType.number,
-          decoration: const InputDecoration(
-            labelText: 'Количество недель (1–104)',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(c),
-            child: const Text('Отмена'),
-          ),
-          FilledButton(
-            onPressed: () {
-              final n = int.tryParse(controller.text);
-              if (n != null && n >= 1 && n <= 104) Navigator.pop(c, n);
-            },
-            child: const Text('Далее'),
-          ),
-        ],
+    await Navigator.of(context).push<bool>(
+      MaterialPageRoute(
+        builder: (_) =>
+            RepeatScheduleScreen(state: s, source: date, dayPayload: payload()),
       ),
     );
-    if (weeks == null || !mounted) return;
-    if (!await confirm(
-      context,
-      'Сохранить и повторить на $weeks недель с ${iso(start)}? Расписание на этих датах будет заменено.',
-    )) {
-      return;
-    }
-    setState(() => busy = true);
-    try {
-      final path = '/groups/${s.group}/days/${widget.day['date']}';
-      await s.api.request(path, method: 'PUT', body: payload());
-      await s.api.request(
-        '$path/repeat',
-        method: 'POST',
-        body: {'start': iso(start), 'weeks': weeks},
-      );
-      if (mounted) Navigator.pop(context);
-    } catch (e) {
-      if (mounted) showError(context, e);
-    } finally {
-      if (mounted) setState(() => busy = false);
-    }
   }
 
   Future<void> copy() async {
@@ -407,7 +359,9 @@ class _ScheduleEditorState extends State<ScheduleEditor> {
                     title: Text(
                       '${lessons[i]['slot']}. ${lessons[i]['subject']}',
                     ),
-                    subtitle: Text('${lessons[i]['room'] ?? ''}'),
+                    subtitle: Text(
+                      '${timeFor(lessons[i]['slot'], shortened)} · ${lessons[i]['teacher'] ?? ''} · ${lessons[i]['room'] ?? ''}${lessons[i]['subgroup_id'] == null ? '' : ' · Пг ${lessons[i]['subgroup_id']}'}',
+                    ),
                     onTap: () => lesson(i),
                     trailing: IconButton(
                       tooltip: 'Удалить пару',
@@ -447,18 +401,6 @@ class _ScheduleEditorState extends State<ScheduleEditor> {
                   ),
                 ],
               ),
-              const SizedBox(height: 20),
-              Text(
-                'Предпросмотр',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              for (final l in lessons)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  child: Text(
-                    '${l['slot']}. ${timeFor(l['slot'], shortened)} · ${l['subject']}\n${l['teacher'] ?? ''} · ${l['room'] ?? ''}${l['subgroup_id'] == null ? '' : ' · ${subgroups.where((g) => g['id'] == l['subgroup_id']).map((g) => g['name']).join()}'}',
-                  ),
-                ),
               const SizedBox(height: 24),
               FilledButton(
                 onPressed: busy ? null : save,
