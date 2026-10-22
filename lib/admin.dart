@@ -275,8 +275,6 @@ class _AdminGroupEditorState extends State<AdminGroupEditor> {
   final name = TextEditingController(), password = TextEditingController();
   bool published = true, active = true, busy = false, visible = false;
   String? error;
-  late DateTime monday;
-  String week = 'lower';
   Map<String, dynamic>? saved;
 
   @override
@@ -286,8 +284,6 @@ class _AdminGroupEditorState extends State<AdminGroupEditor> {
     name.text = g?['name'] ?? widget.request?['group_number'] ?? '';
     published = g?['published'] ?? true;
     active = g?['active'] ?? true;
-    monday = DateTime.parse(g?['anchor_monday'] ?? '2026-10-19');
-    week = g?['anchor_week'] ?? 'lower';
   }
 
   @override
@@ -327,8 +323,6 @@ class _AdminGroupEditorState extends State<AdminGroupEditor> {
           'published': published,
           'active': active,
           'timezone': g?['timezone'] ?? 'Europe/Moscow',
-          'anchor_monday': iso(monday),
-          'anchor_week': week,
         },
       );
       if (!mounted) return;
@@ -536,57 +530,6 @@ class _AdminGroupEditorState extends State<AdminGroupEditor> {
                               ? null
                               : (v) => setState(() => active = v),
                         ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  FormPanel(
-                    child: Column(
-                      children: [
-                        ListTile(
-                          contentPadding: EdgeInsets.zero,
-                          title: const Text('Начало недели'),
-                          subtitle: Text(
-                            DateFormat('d MMMM yyyy', 'ru').format(monday),
-                          ),
-                          trailing: const Icon(Icons.calendar_month_outlined),
-                          onTap: busy
-                              ? null
-                              : () async {
-                                  final date = await showDatePicker(
-                                    context: context,
-                                    initialDate: monday,
-                                    firstDate: DateTime(2020),
-                                    lastDate: DateTime(2100),
-                                    selectableDayPredicate: (d) =>
-                                        d.weekday == DateTime.monday,
-                                  );
-                                  if (date != null && mounted) {
-                                    setState(() => monday = date);
-                                  }
-                                },
-                        ),
-                        DropdownButtonFormField<String>(
-                          isExpanded: true,
-                          initialValue: week,
-                          decoration: const InputDecoration(
-                            labelText: 'Тип этой недели',
-                          ),
-                          items: const [
-                            DropdownMenuItem(
-                              value: 'upper',
-                              child: Text('Верхняя'),
-                            ),
-                            DropdownMenuItem(
-                              value: 'lower',
-                              child: Text('Нижняя'),
-                            ),
-                          ],
-                          onChanged: busy
-                              ? null
-                              : (v) => setState(() => week = v!),
-                        ),
-                        const SizedBox(height: 8),
                       ],
                     ),
                   ),

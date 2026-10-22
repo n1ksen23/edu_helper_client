@@ -62,6 +62,8 @@ void main() {
       await t.tap(find.text('Принять и создать группу'));
       await t.pumpAndSettle();
       expect(find.text('5101'), findsOneWidget);
+    expect(find.text('Начало недели'), findsNothing);
+    expect(find.text('Тип этой недели'), findsNothing);
       await t.tap(find.text('Сгенерировать пароль'));
       await t.pumpAndSettle();
       await t.ensureVisible(find.text('Создать группу и принять заявку'));
@@ -71,6 +73,8 @@ void main() {
       expect(submitted!['name'], '5101');
       expect((submitted!['password'] as String).length, 20);
       expect(submitted!['published'], true);
+    expect(submitted!.containsKey('anchor_monday'), false);
+    expect(submitted!.containsKey('anchor_week'), false);
       expect(find.text('Группа сохранена'), findsOneWidget);
       expect(find.text('Скопировать группу и пароль'), findsOneWidget);
       expect(find.text('head@example.org'), findsOneWidget);
